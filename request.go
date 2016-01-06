@@ -63,9 +63,16 @@ func (rc *RestClient) Do(obj interface{}) error {
 		req.URL.RawQuery = buf.String()
 	}
 	if rc.Body != nil {
-		d, err := json.Marshal(rc.Body)
-		if err != nil {
-			return err
+		var d []byte
+		if s, ok := obj.(string); ok {
+			d = []byte(s)
+		} else if sp, ok := obj.(*string); ok {
+			d = []byte(*sp)
+		} else {
+			d, err = json.Marshal(obj)
+			if err != nil {
+				return err
+			}
 		}
 		req.Body = ioutil.NopCloser(bytes.NewReader(d))
 		req.Header.Set("Content-Type", "application/json;charset=utf-8")

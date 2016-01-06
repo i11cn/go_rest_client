@@ -1,0 +1,4 @@
+package rc
+
+func init() {
+}

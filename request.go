@@ -73,12 +73,12 @@ func (rc *RestClient) Do(obj interface{}) error {
 	}
 	if rc.Body != nil {
 		var d []byte
-		if s, ok := obj.(string); ok {
+		if s, ok := rc.Body.(string); ok {
 			d = []byte(s)
-		} else if sp, ok := obj.(*string); ok {
+		} else if sp, ok := rc.Body.(*string); ok {
 			d = []byte(*sp)
 		} else {
-			d, err = json.Marshal(obj)
+			d, err = json.Marshal(rc.Body)
 			if err != nil {
 				return err
 			}

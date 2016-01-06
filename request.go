@@ -122,6 +122,11 @@ func (rc *RestClient) Patch(obj interface{}) error {
 	return rc.Do(obj)
 }
 
+func (rc *RestClient) Trace(obj interface{}) error {
+	rc.Method = "TRACE"
+	return rc.Do(obj)
+}
+
 func Get(host string, port int, uri string, obj interface{}) error {
 	c := &RestClient{Method: "GET", Host: host, Port: port, Uri: uri}
 	return c.Do(obj)
@@ -154,5 +159,10 @@ func Head(host string, port int, uri string, body, obj interface{}) error {
 
 func Patch(host string, port int, uri string, body, obj interface{}) error {
 	c := &RestClient{Method: "PATCH", Host: host, Port: port, Uri: uri, Body: body}
+	return c.Do(obj)
+}
+
+func Trace(host string, port int, uri string, body, obj interface{}) error {
+	c := &RestClient{Method: "TRACE", Host: host, Port: port, Uri: uri, Body: body}
 	return c.Do(obj)
 }

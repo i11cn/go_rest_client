@@ -17,6 +17,7 @@ type (
 		Uri    string
 		Query  map[string]interface{}
 		Body   interface{}
+		SSL    bool
 	}
 )
 
@@ -40,10 +41,18 @@ func (rc *RestClient) Do(obj interface{}) error {
 	if len(rc.Uri) > 0 && []byte(rc.Uri)[0] != '/' {
 		root = "/"
 	}
-	if rc.Port == 0 || rc.Port == 80 {
-		url = fmt.Sprintf("https://%s%s%s", rc.Host, root, rc.Uri)
+	if rc.SSL {
+		if rc.Port == 0 || rc.Port == 443 {
+			url = fmt.Sprintf("https://%s%s%s", rc.Host, root, rc.Uri)
+		} else {
+			url = fmt.Sprintf("https://%s:%d%s%s", rc.Host, rc.Port, root, rc.Uri)
+		}
 	} else {
-		url = fmt.Sprintf("https://%s:%d%s%s", rc.Host, rc.Port, root, rc.Uri)
+		if rc.Port == 0 || rc.Port == 80 {
+			url = fmt.Sprintf("http://%s%s%s", rc.Host, root, rc.Uri)
+		} else {
+			url = fmt.Sprintf("http://%s:%d%s%s", rc.Host, rc.Port, root, rc.Uri)
+		}
 	}
 	req, err := http.NewRequest(rc.Method, url, nil)
 	if err != nil {

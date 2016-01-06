@@ -67,7 +67,8 @@ func (rc *RestClient) Do(obj interface{}) error {
 		if err != nil {
 			return err
 		}
-		rc.Body = ioutil.NopCloser(bytes.NewReader(d))
+		req.Body = ioutil.NopCloser(bytes.NewReader(d))
+		req.Header.Set("Content-Type", "application/json;charset=utf-8")
 	}
 	resp, err := client.Do(req)
 	if err == nil {

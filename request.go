@@ -9,42 +9,48 @@ import (
 )
 
 type (
-	BodyProcess interface {
+	BodyMarshal interface {
 		Marshal(interface{}, *http.Request) error
+	}
+	BodyUnmarshal interface {
 		Unmarshal([]byte, interface{}) error
 	}
 
 	RestClient struct {
-		Method       string
-		Host         string
-		Port         int
-		Uri          string
-		Query        map[string]interface{}
-		Body         interface{}
-		SSL          bool
-		body_process BodyProcess
+		Method         string
+		Host           string
+		Port           int
+		Uri            string
+		Query          map[string]interface{}
+		Body           interface{}
+		SSL            bool
+		body_marshal   BodyMarshal
+		body_unmarshal BodyUnmarshal
 	}
 )
 
 var (
-	g_cert_verify                      = false
-	g_default_body_process BodyProcess = &JsonBodyProcess{}
+	g_cert_verify                          = false
+	g_default_body_marshal   BodyMarshal   = &JsonBodyProcess{}
+	g_default_body_unmarshal BodyUnmarshal = &JsonBodyProcess{}
 )
 
 func VerifyCert(verify bool) {
 	g_cert_verify = verify
 }
 
-func SetDefaultBodyProcess(bp BodyProcess) {
-	g_default_body_process = bp
+func SetDefaultBodyProcess(bm BodyMarshal, bu BodyUnmarshal) {
+	g_default_body_marshal = bm
+	g_default_body_unmarshal = bu
 }
 
 func NewClient(host string, port int, uri string, query map[string]interface{}, body interface{}) *RestClient {
-	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_process: g_default_body_process}
+	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_marshal: g_default_body_marshal, body_unmarshal: g_default_body_unmarshal}
 }
 
-func (rc *RestClient) SetBodyProcess(bp BodyProcess) {
-	rc.body_process = bp
+func (rc *RestClient) SetBodyProcess(bm BodyMarshal, bu BodyUnmarshal) {
+	rc.body_marshal = bm
+	rc.body_unmarshal = bu
 }
 
 func (rc *RestClient) Do(obj interface{}) error {
@@ -87,7 +93,7 @@ func (rc *RestClient) Do(obj interface{}) error {
 		}
 		req.URL.RawQuery = buf.String()
 	}
-	rc.body_process.Marshal(rc.Body, req)
+	rc.body_marshal.Marshal(rc.Body, req)
 	//if rc.Body != nil {
 	//	var d []byte
 	//	if s, ok := rc.Body.(string); ok {
@@ -107,7 +113,7 @@ func (rc *RestClient) Do(obj interface{}) error {
 	if err == nil {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err == nil && obj != nil {
-			return rc.body_process.Unmarshal(body, obj)
+			return rc.body_unmarshal.Unmarshal(body, obj)
 		}
 	}
 	return err

@@ -37,6 +37,12 @@ func (j *FormBodyProcess) Marshal(body interface{}, req *http.Request) (err erro
 }
 
 func (j *FormBodyProcess) Unmarshal(body []byte, obj interface{}) (err error) {
-	obj = string(body)
+	switch obj.(type) {
+	case map[string]interface{}:
+	case string:
+		obj = string(body)
+	case *string:
+		obj = string(body)
+	}
 	return nil
 }

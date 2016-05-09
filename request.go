@@ -3,32 +3,48 @@ package rc
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 )
 
 type (
+	BodyProcess interface {
+		Marshal(interface{}, *http.Request) error
+		Unmarshal([]byte, interface{}) error
+	}
+
 	RestClient struct {
-		Method string
-		Host   string
-		Port   int
-		Uri    string
-		Query  map[string]interface{}
-		Body   interface{}
-		SSL    bool
+		Method       string
+		Host         string
+		Port         int
+		Uri          string
+		Query        map[string]interface{}
+		Body         interface{}
+		SSL          bool
+		body_process BodyProcess
 	}
 )
 
-var g_cert_verify = false
+var (
+	g_cert_verify                      = false
+	g_default_body_process BodyProcess = &JsonBodyProcess{}
+)
 
 func VerifyCert(verify bool) {
 	g_cert_verify = verify
 }
 
+func SetDefaultBodyProcess(bp BodyProcess) {
+	g_default_body_process = bp
+}
+
 func NewClient(host string, port int, uri string, query map[string]interface{}, body interface{}) *RestClient {
-	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body}
+	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_process: g_default_body_process}
+}
+
+func (rc *RestClient) SetBodyProcess(bp BodyProcess) {
+	rc.body_process = bp
 }
 
 func (rc *RestClient) Do(obj interface{}) error {
@@ -71,26 +87,27 @@ func (rc *RestClient) Do(obj interface{}) error {
 		}
 		req.URL.RawQuery = buf.String()
 	}
-	if rc.Body != nil {
-		var d []byte
-		if s, ok := rc.Body.(string); ok {
-			d = []byte(s)
-		} else if sp, ok := rc.Body.(*string); ok {
-			d = []byte(*sp)
-		} else {
-			d, err = json.Marshal(rc.Body)
-			if err != nil {
-				return err
-			}
-		}
-		req.Body = ioutil.NopCloser(bytes.NewReader(d))
-		req.Header.Set("Content-Type", "application/json;charset=utf-8")
-	}
+	rc.body_process.Marshal(rc.Body, req)
+	//if rc.Body != nil {
+	//	var d []byte
+	//	if s, ok := rc.Body.(string); ok {
+	//		d = []byte(s)
+	//	} else if sp, ok := rc.Body.(*string); ok {
+	//		d = []byte(*sp)
+	//	} else {
+	//		d, err = json.Marshal(rc.Body)
+	//		if err != nil {
+	//			return err
+	//		}
+	//	}
+	//	req.Body = ioutil.NopCloser(bytes.NewReader(d))
+	//	req.Header.Set("Content-Type", "application/json;charset=utf-8")
+	//}
 	resp, err := client.Do(req)
 	if err == nil {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err == nil && obj != nil {
-			return json.Unmarshal(body, obj)
+			return rc.body_process.Unmarshal(body, obj)
 		}
 	}
 	return err

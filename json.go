@@ -26,11 +26,12 @@ func (j *JsonBodyProcess) Marshal(body interface{}, req *http.Request) (err erro
 			}
 		}
 		req.Body = ioutil.NopCloser(bytes.NewReader(d))
+		req.ContentLength = int64(len(d))
 		req.Header.Set("Content-Type", "application/json;charset=utf-8")
 	}
 	return nil
 }
 
-func (j *JsonBodyProcess) Unmarshal(body []byte, obj interface{}) (err error) {
+func (j *JsonBodyProcess) Unmarshal(resp *http.Response, body []byte, obj interface{}) (err error) {
 	return json.Unmarshal(body, obj)
 }

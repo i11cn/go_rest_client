@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 type (
@@ -13,44 +14,40 @@ type (
 		Marshal(interface{}, *http.Request) error
 	}
 	BodyUnmarshal interface {
-		Unmarshal([]byte, interface{}) error
+		Unmarshal(*http.Response, []byte, interface{}) error
 	}
 
 	RestClient struct {
-		Method         string
-		Host           string
-		Port           int
-		Uri            string
-		Query          map[string]interface{}
-		Body           interface{}
-		SSL            bool
-		body_marshal   BodyMarshal
-		body_unmarshal BodyUnmarshal
+		Method       string
+		Host         string
+		Port         int
+		Uri          string
+		Query        map[string]interface{}
+		Body         interface{}
+		SSL          bool
+		body_marshal BodyMarshal
 	}
 )
 
 var (
-	g_cert_verify                          = false
-	g_default_body_marshal   BodyMarshal   = &JsonBodyProcess{}
-	g_default_body_unmarshal BodyUnmarshal = &JsonBodyProcess{}
+	g_cert_verify                      = false
+	g_default_body_marshal BodyMarshal = &JsonBodyProcess{}
 )
 
 func VerifyCert(verify bool) {
 	g_cert_verify = verify
 }
 
-func SetDefaultBodyProcess(bm BodyMarshal, bu BodyUnmarshal) {
+func SetDefaultBodyMarshal(bm BodyMarshal) {
 	g_default_body_marshal = bm
-	g_default_body_unmarshal = bu
 }
 
 func NewClient(host string, port int, uri string, query map[string]interface{}, body interface{}) *RestClient {
-	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_marshal: g_default_body_marshal, body_unmarshal: g_default_body_unmarshal}
+	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_marshal: g_default_body_marshal}
 }
 
-func (rc *RestClient) SetBodyProcess(bm BodyMarshal, bu BodyUnmarshal) {
+func (rc *RestClient) SetBodyProcess(bm BodyMarshal) {
 	rc.body_marshal = bm
-	rc.body_unmarshal = bu
 }
 
 func (rc *RestClient) Do(obj interface{}) error {
@@ -94,26 +91,17 @@ func (rc *RestClient) Do(obj interface{}) error {
 		req.URL.RawQuery = buf.String()
 	}
 	rc.body_marshal.Marshal(rc.Body, req)
-	//if rc.Body != nil {
-	//	var d []byte
-	//	if s, ok := rc.Body.(string); ok {
-	//		d = []byte(s)
-	//	} else if sp, ok := rc.Body.(*string); ok {
-	//		d = []byte(*sp)
-	//	} else {
-	//		d, err = json.Marshal(rc.Body)
-	//		if err != nil {
-	//			return err
-	//		}
-	//	}
-	//	req.Body = ioutil.NopCloser(bytes.NewReader(d))
-	//	req.Header.Set("Content-Type", "application/json;charset=utf-8")
-	//}
 	resp, err := client.Do(req)
 	if err == nil {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err == nil && obj != nil {
-			return rc.body_unmarshal.Unmarshal(body, obj)
+			ct := resp.Header.Get("Content-Type")
+			switch {
+			case strings.HasPrefix(ct, "application/json"):
+				return (&JsonBodyProcess{}).Unmarshal(resp, body, obj)
+			case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
+				return (&FormBodyProcess{}).Unmarshal(resp, body, obj)
+			}
 		}
 	}
 	return err
@@ -160,41 +148,41 @@ func (rc *RestClient) Trace(obj interface{}) error {
 }
 
 func Get(host string, port int, uri string, obj interface{}) error {
-	c := &RestClient{Method: "GET", Host: host, Port: port, Uri: uri}
+	c := &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Post(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "POST", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "POST", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Put(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "PUT", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "PUT", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Delete(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "DELETE", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "DELETE", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Option(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "OPTION", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "OPTION", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Head(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "HEAD", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "HEAD", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Patch(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "PATCH", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "PATCH", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }
 
 func Trace(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "TRACE", Host: host, Port: port, Uri: uri, Body: body}
+	c := &RestClient{Method: "TRACE", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
 	return c.Do(obj)
 }

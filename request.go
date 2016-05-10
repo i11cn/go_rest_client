@@ -46,6 +46,10 @@ func NewClient(host string, port int, uri string, query map[string]interface{}, 
 	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_marshal: g_default_body_marshal}
 }
 
+func (rc *RestClient) SetMethod(m string) {
+	rc.Method = m
+}
+
 func (rc *RestClient) SetBodyProcess(bm BodyMarshal) {
 	rc.body_marshal = bm
 }

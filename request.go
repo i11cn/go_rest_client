@@ -49,7 +49,6 @@ var (
 
 func (c *call_remote) Invoke(r *Request, args ...interface{}) error {
 	uri := fmt.Sprintf(c.uri, args...)
-
 	client := &http.Client{}
 	if !g_cert_verify {
 		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}

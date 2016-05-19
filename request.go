@@ -12,9 +12,9 @@ import (
 
 type (
 	Call interface {
-		Invoke(*Request, ...interface{}) error
+		Invoke(*Request, ...interface{}) (*http.Response, error)
 	}
-	Caller func(*Request, ...interface{}) error
+	Caller func(*Request, ...interface{}) (*http.Response, error)
 
 	BodyMarshal interface {
 		Marshal(interface{}, *http.Request) error
@@ -47,7 +47,7 @@ var (
 	g_default_body_marshal BodyMarshal = &JsonBodyProcess{}
 )
 
-func (c *call_remote) Invoke(r *Request, args ...interface{}) error {
+func (c *call_remote) Invoke(r *Request, args ...interface{}) (*http.Response, error) {
 	uri := fmt.Sprintf(c.uri, args...)
 	client := &http.Client{}
 	if !g_cert_verify {
@@ -55,7 +55,7 @@ func (c *call_remote) Invoke(r *Request, args ...interface{}) error {
 	}
 	req, err := http.NewRequest(c.method, uri, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(r.Query) > 0 {
 		buf := bytes.NewBufferString("")
@@ -77,16 +77,14 @@ func (c *call_remote) Invoke(r *Request, args ...interface{}) error {
 		if err == nil && r.Result != nil {
 			ct := resp.Header.Get("Content-Type")
 			switch {
-			case strings.HasPrefix(ct, "application/json"):
-				return (&JsonBodyProcess{}).Unmarshal(resp, body, r.Result)
-			case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
-				return (&FormBodyProcess{}).Unmarshal(resp, body, r.Result)
+			case strings.HasPrefix(strings.ToLower(ct), "application/json"):
+				return resp, (&JsonBodyProcess{}).Unmarshal(resp, body, r.Result)
+			case strings.HasPrefix(strings.ToLower(ct), "application/x-www-form-urlencoded"):
+				return resp, (&FormBodyProcess{}).Unmarshal(resp, body, r.Result)
 			}
 		}
 	}
-	return err
-
-	return nil
+	return resp, err
 }
 
 func VerifyCert(verify bool) {
@@ -130,56 +128,64 @@ func (rc *RestClient) GetCaller(method, uri string) Caller {
 		buf.WriteByte('/')
 	}
 	buf.WriteString(uri)
-	return func(r *Request, args ...interface{}) error {
+	return func(r *Request, args ...interface{}) (*http.Response, error) {
 		cr := &call_remote{rc, method, buf.String()}
 		return cr.Invoke(r, args...)
 	}
 }
 
-/*
-func Get(host string, port int, uri string, obj interface{}) error {
-	c := &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	return c.Do(nil, obj)
+func (rc *RestClient) Get(uri string, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("GET", uri)(&Request{map[string]interface{}{}, nil, obj}, args...)
 }
 
-func Post(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "POST", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
+func (rc *RestClient) Post(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("POST", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Put(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "PUT", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
+func (rc *RestClient) Put(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("PUT", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Delete(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "DELETE", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
+func (rc *RestClient) Delete(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("DELETE", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Option(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "OPTION", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
+func (rc *RestClient) Option(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("OPTION", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Head(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "HEAD", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
+func (rc *RestClient) Head(uri string, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("HEAD", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
 }
 
-func Patch(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "PATCH", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
+func (rc *RestClient) Trace(uri string, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("TRACE", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
 }
 
-func Trace(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "TRACE", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	r := &Request{map[string]interface{}{}, body}
-	return c.Do(r, obj)
-}*/
+func Get(uri string, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("GET", uri)(&Request{map[string]interface{}{}, nil, obj}, args...)
+}
+
+func Post(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("POST", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+}
+
+func Put(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("PUT", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+}
+
+func Delete(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("DELETE", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+}
+
+func Option(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("OPTION", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+}
+
+func Head(uri string, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("HEAD", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
+}
+
+func Trace(uri string, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("TRACE", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
+}

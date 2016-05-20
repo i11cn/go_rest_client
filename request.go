@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -48,7 +49,15 @@ var (
 )
 
 func (c *call_remote) Invoke(r *Request, args ...interface{}) (*http.Response, error) {
-	uri := fmt.Sprintf(c.uri, args...)
+	qs := make([]interface{}, 0, len(args))
+	for _, a := range args {
+		if s, ok := a.(string); ok {
+			qs = append(qs, url.QueryEscape(s))
+		} else {
+			qs = append(qs, s)
+		}
+	}
+	uri := fmt.Sprintf(c.uri, qs...)
 	client := &http.Client{}
 	if !g_cert_verify {
 		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}

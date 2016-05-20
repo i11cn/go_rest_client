@@ -70,7 +70,12 @@ func (c *call_remote) Invoke(r *Request, args ...interface{}) (*http.Response, e
 		}
 		req.URL.RawQuery = buf.String()
 	}
-	c.client.body_marshal.Marshal(r.Body, req)
+	if c.client != nil {
+
+		c.client.body_marshal.Marshal(r.Body, req)
+	} else {
+		g_default_body_marshal.Marshal(r.Body, req)
+	}
 	resp, err := client.Do(req)
 	if err == nil {
 		body, err := ioutil.ReadAll(resp.Body)
@@ -163,29 +168,29 @@ func (rc *RestClient) Trace(uri string, args ...interface{}) (*http.Response, er
 }
 
 func Get(uri string, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("GET", uri)(&Request{map[string]interface{}{}, nil, obj}, args...)
+	return (&call_remote{nil, "GET", uri}).Invoke(&Request{map[string]interface{}{}, nil, obj}, args...)
 }
 
 func Post(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("POST", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "POST", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Put(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("PUT", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "PUT", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Delete(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("DELETE", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "DELETE", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Option(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("OPTION", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "OPTION", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Head(uri string, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("HEAD", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
+	return (&call_remote{nil, "HEAD", uri}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
 }
 
 func Trace(uri string, args ...interface{}) (*http.Response, error) {
-	return rc.GetCaller("TRACE", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
+	return (&call_remote{nil, "TRACE", uri}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
 }

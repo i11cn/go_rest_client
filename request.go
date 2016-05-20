@@ -6,10 +6,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
 type (
+	Call interface {
+		Invoke(*Request, ...interface{}) (*http.Response, error)
+	}
+	Caller func(*Request, ...interface{}) (*http.Response, error)
+
 	BodyMarshal interface {
 		Marshal(interface{}, *http.Request) error
 	}
@@ -18,14 +24,21 @@ type (
 	}
 
 	RestClient struct {
-		Method       string
 		Host         string
 		Port         int
-		Uri          string
-		Query        map[string]interface{}
-		Body         interface{}
+		BaseUri      string
 		SSL          bool
 		body_marshal BodyMarshal
+	}
+	Request struct {
+		Query  map[string]interface{}
+		Body   interface{}
+		Result interface{}
+	}
+	call_remote struct {
+		client *RestClient
+		method string
+		uri    string
 	}
 )
 
@@ -34,53 +47,20 @@ var (
 	g_default_body_marshal BodyMarshal = &JsonBodyProcess{}
 )
 
-func VerifyCert(verify bool) {
-	g_cert_verify = verify
-}
-
-func SetDefaultBodyMarshal(bm BodyMarshal) {
-	g_default_body_marshal = bm
-}
-
-func NewClient(host string, port int, uri string, query map[string]interface{}, body interface{}) *RestClient {
-	return &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, Query: query, Body: body, body_marshal: g_default_body_marshal}
-}
-
-func (rc *RestClient) SetBodyProcess(bm BodyMarshal) {
-	rc.body_marshal = bm
-}
-
-func (rc *RestClient) Do(obj interface{}) error {
+func (c *call_remote) Invoke(r *Request, args ...interface{}) (*http.Response, error) {
+	uri := fmt.Sprintf(c.uri, args...)
 	client := &http.Client{}
 	if !g_cert_verify {
 		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
-	url := ""
-	root := ""
-	if len(rc.Uri) > 0 && []byte(rc.Uri)[0] != '/' {
-		root = "/"
-	}
-	if rc.SSL {
-		if rc.Port == 0 || rc.Port == 443 {
-			url = fmt.Sprintf("https://%s%s%s", rc.Host, root, rc.Uri)
-		} else {
-			url = fmt.Sprintf("https://%s:%d%s%s", rc.Host, rc.Port, root, rc.Uri)
-		}
-	} else {
-		if rc.Port == 0 || rc.Port == 80 {
-			url = fmt.Sprintf("http://%s%s%s", rc.Host, root, rc.Uri)
-		} else {
-			url = fmt.Sprintf("http://%s:%d%s%s", rc.Host, rc.Port, root, rc.Uri)
-		}
-	}
-	req, err := http.NewRequest(rc.Method, url, nil)
+	req, err := http.NewRequest(c.method, uri, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if len(rc.Query) > 0 {
+	if len(r.Query) > 0 {
 		buf := bytes.NewBufferString("")
 		empty := true
-		for k, v := range rc.Query {
+		for k, v := range r.Query {
 			if !empty {
 				buf.WriteString("&")
 			}
@@ -90,99 +70,127 @@ func (rc *RestClient) Do(obj interface{}) error {
 		}
 		req.URL.RawQuery = buf.String()
 	}
-	rc.body_marshal.Marshal(rc.Body, req)
+	if c.client != nil {
+
+		c.client.body_marshal.Marshal(r.Body, req)
+	} else {
+		g_default_body_marshal.Marshal(r.Body, req)
+	}
 	resp, err := client.Do(req)
 	if err == nil {
 		body, err := ioutil.ReadAll(resp.Body)
-		if err == nil && obj != nil {
+		if err == nil && r.Result != nil {
 			ct := resp.Header.Get("Content-Type")
 			switch {
-			case strings.HasPrefix(ct, "application/json"):
-				return (&JsonBodyProcess{}).Unmarshal(resp, body, obj)
-			case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
-				return (&FormBodyProcess{}).Unmarshal(resp, body, obj)
+			case strings.HasPrefix(strings.ToLower(ct), "application/json"):
+				return resp, (&JsonBodyProcess{}).Unmarshal(resp, body, r.Result)
+			case strings.HasPrefix(strings.ToLower(ct), "application/x-www-form-urlencoded"):
+				return resp, (&FormBodyProcess{}).Unmarshal(resp, body, r.Result)
 			}
 		}
 	}
-	return err
+	return resp, err
 }
 
-func (rc *RestClient) Get(obj interface{}) error {
-	rc.Method = "GET"
-	return rc.Do(obj)
+func VerifyCert(verify bool) {
+	g_cert_verify = verify
 }
 
-func (rc *RestClient) Post(obj interface{}) error {
-	rc.Method = "POST"
-	return rc.Do(obj)
+func SetDefaultBodyMarshal(bm BodyMarshal) {
+	g_default_body_marshal = bm
 }
 
-func (rc *RestClient) Put(obj interface{}) error {
-	rc.Method = "PUT"
-	return rc.Do(obj)
+func NewClient(host string, port int, uri string) *RestClient {
+	return &RestClient{Host: host, Port: port, BaseUri: uri, body_marshal: g_default_body_marshal}
 }
 
-func (rc *RestClient) Delete(obj interface{}) error {
-	rc.Method = "DELETE"
-	return rc.Do(obj)
+func (rc *RestClient) SetBodyMarshal(bm BodyMarshal) {
+	rc.body_marshal = bm
 }
 
-func (rc *RestClient) Option(obj interface{}) error {
-	rc.Method = "OPTION"
-	return rc.Do(obj)
+func (rc *RestClient) GetCaller(method, uri string) Caller {
+	var buf bytes.Buffer
+	if rc.SSL {
+		buf.WriteString("https://")
+		buf.WriteString(rc.Host)
+		if rc.Port != 0 && rc.Port != 443 {
+			buf.WriteByte(':')
+			buf.WriteString(strconv.Itoa(rc.Port))
+		}
+	} else {
+		buf.WriteString("http://")
+		buf.WriteString(rc.Host)
+		if rc.Port != 0 && rc.Port != 443 {
+			buf.WriteByte(':')
+			buf.WriteString(strconv.Itoa(rc.Port))
+		}
+	}
+	if len(rc.BaseUri) > 0 && []byte(rc.BaseUri)[0] != '/' {
+		buf.WriteByte('/')
+	}
+	buf.WriteString(rc.BaseUri)
+	if len(uri) > 0 && []byte(uri)[0] != '/' {
+		buf.WriteByte('/')
+	}
+	buf.WriteString(uri)
+	return func(r *Request, args ...interface{}) (*http.Response, error) {
+		cr := &call_remote{rc, method, buf.String()}
+		return cr.Invoke(r, args...)
+	}
 }
 
-func (rc *RestClient) Head(obj interface{}) error {
-	rc.Method = "HEAD"
-	return rc.Do(obj)
+func (rc *RestClient) Get(uri string, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("GET", uri)(&Request{map[string]interface{}{}, nil, obj}, args...)
 }
 
-func (rc *RestClient) Patch(obj interface{}) error {
-	rc.Method = "PATCH"
-	return rc.Do(obj)
+func (rc *RestClient) Post(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("POST", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func (rc *RestClient) Trace(obj interface{}) error {
-	rc.Method = "TRACE"
-	return rc.Do(obj)
+func (rc *RestClient) Put(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("PUT", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Get(host string, port int, uri string, obj interface{}) error {
-	c := &RestClient{Method: "GET", Host: host, Port: port, Uri: uri, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func (rc *RestClient) Delete(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("DELETE", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Post(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "POST", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func (rc *RestClient) Option(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("OPTION", uri)(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Put(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "PUT", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func (rc *RestClient) Head(uri string, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("HEAD", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
 }
 
-func Delete(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "DELETE", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func (rc *RestClient) Trace(uri string, args ...interface{}) (*http.Response, error) {
+	return rc.GetCaller("TRACE", uri)(&Request{map[string]interface{}{}, nil, nil}, args...)
 }
 
-func Option(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "OPTION", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func Get(uri string, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "GET", uri}).Invoke(&Request{map[string]interface{}{}, nil, obj}, args...)
 }
 
-func Head(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "HEAD", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func Post(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "POST", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Patch(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "PATCH", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func Put(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "PUT", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
-func Trace(host string, port int, uri string, body, obj interface{}) error {
-	c := &RestClient{Method: "TRACE", Host: host, Port: port, Uri: uri, Body: body, body_marshal: g_default_body_marshal}
-	return c.Do(obj)
+func Delete(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "DELETE", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
+}
+
+func Option(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "OPTION", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
+}
+
+func Head(uri string, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "HEAD", uri}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
+}
+
+func Trace(uri string, args ...interface{}) (*http.Response, error) {
+	return (&call_remote{nil, "TRACE", uri}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
 }

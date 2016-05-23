@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type (
@@ -30,6 +31,7 @@ type (
 		BaseUri      string
 		SSL          bool
 		body_marshal BodyMarshal
+		timeout      int
 	}
 	Request struct {
 		Query  map[string]interface{}
@@ -37,9 +39,10 @@ type (
 		Result interface{}
 	}
 	call_remote struct {
-		client *RestClient
-		method string
-		uri    string
+		client  *RestClient
+		method  string
+		uri     string
+		timeout int
 	}
 )
 
@@ -58,7 +61,7 @@ func (c *call_remote) Invoke(r *Request, args ...interface{}) (*http.Response, e
 		}
 	}
 	uri := fmt.Sprintf(c.uri, qs...)
-	client := &http.Client{}
+	client := &http.Client{Timeout: time.Duration(c.timeout) * time.Second}
 	if !g_cert_verify {
 		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
@@ -117,6 +120,11 @@ func (rc *RestClient) SetBodyMarshal(bm BodyMarshal) {
 	rc.body_marshal = bm
 }
 
+func (rc *RestClient) SetTimeout(to int) *RestClient {
+	rc.timeout = to
+	return rc
+}
+
 func (rc *RestClient) GetCaller(method, uri string) Caller {
 	var buf bytes.Buffer
 	if rc.SSL {
@@ -143,7 +151,7 @@ func (rc *RestClient) GetCaller(method, uri string) Caller {
 	}
 	buf.WriteString(uri)
 	return func(r *Request, args ...interface{}) (*http.Response, error) {
-		cr := &call_remote{rc, method, buf.String()}
+		cr := &call_remote{rc, method, buf.String(), rc.timeout}
 		return cr.Invoke(r, args...)
 	}
 }
@@ -177,29 +185,29 @@ func (rc *RestClient) Trace(uri string, args ...interface{}) (*http.Response, er
 }
 
 func Get(uri string, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "GET", uri}).Invoke(&Request{map[string]interface{}{}, nil, obj}, args...)
+	return (&call_remote{nil, "GET", uri, 0}).Invoke(&Request{map[string]interface{}{}, nil, obj}, args...)
 }
 
 func Post(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "POST", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "POST", uri, 0}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Put(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "PUT", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "PUT", uri, 0}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Delete(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "DELETE", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "DELETE", uri, 0}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Option(uri string, body interface{}, obj interface{}, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "OPTION", uri}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
+	return (&call_remote{nil, "OPTION", uri, 0}).Invoke(&Request{map[string]interface{}{}, body, obj}, args...)
 }
 
 func Head(uri string, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "HEAD", uri}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
+	return (&call_remote{nil, "HEAD", uri, 0}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
 }
 
 func Trace(uri string, args ...interface{}) (*http.Response, error) {
-	return (&call_remote{nil, "TRACE", uri}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
+	return (&call_remote{nil, "TRACE", uri, 0}).Invoke(&Request{map[string]interface{}{}, nil, nil}, args...)
 }

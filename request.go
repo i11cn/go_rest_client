@@ -96,6 +96,8 @@ func (c *call_remote) Invoke(r *Request, args ...interface{}) (*http.Response, e
 			switch {
 			case strings.HasPrefix(strings.ToLower(ct), "application/json"):
 				return resp, (&JsonBodyProcess{}).Unmarshal(resp, body, r.Result)
+			case strings.HasPrefix(strings.ToLower(ct), "application/xml"):
+				return resp, (&XmlBodyProcess{}).Unmarshal(resp, body, r.Result)
 			case strings.HasPrefix(strings.ToLower(ct), "application/x-www-form-urlencoded"):
 				return resp, (&FormBodyProcess{}).Unmarshal(resp, body, r.Result)
 			}

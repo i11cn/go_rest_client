@@ -1,4 +1,0 @@
-package rc
-
-func init() {
-}

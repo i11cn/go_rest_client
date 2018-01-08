@@ -7,10 +7,11 @@ import (
 
 type (
 	RestServer struct {
-		host string
-		port int
-		ssl  bool
-		url  string
+		host   string
+		port   int
+		ssl    bool
+		url    string
+		ungzip bool
 	}
 
 	API interface {
@@ -23,6 +24,7 @@ func NewRestServer(host string, port ...int) *RestServer {
 	ret.host = host
 	ret.port = 80
 	ret.ssl = false
+	ret.ungzip = true
 	if len(port) > 0 {
 		ret.port = port[0]
 	}
@@ -38,6 +40,10 @@ func NewSSLRestServer(host string, port ...int) *RestServer {
 		ret.port = port[0]
 	}
 	return ret
+}
+
+func (rs *RestServer) AutoDecompress(ungzip bool) {
+	rs.ungzip = ungzip
 }
 
 func (rs *RestServer) get_url() string {

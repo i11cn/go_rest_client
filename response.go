@@ -59,10 +59,7 @@ func (gb *grc_body) Stream() io.Reader {
 func (gb *grc_body) Bytes() (ret []byte, err error) {
 	if gb.data == nil {
 		ret, err = ioutil.ReadAll(gb.body)
-		if err == nil {
-			gb.data = ret
-		}
-		return
+		gb.data = ret
 	}
 	return gb.data, nil
 }

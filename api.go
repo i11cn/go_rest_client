@@ -74,11 +74,14 @@ func (info *json_api_info) Run(obj ...interface{}) (Response, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json;charset=utf-8")
+	if info.server.ungzip {
+		req.Header.Set("Accept-Encoding", "gzip, deflate")
+	}
 	resp, err := info.run(req)
 	if err != nil {
 		return nil, err
 	}
-	return new_grc_response(resp), nil
+	return new_grc_response(resp, info.server.ungzip), nil
 }
 
 func new_json_api(rs *RestServer, method, uri string, body bool, f ...func(*http.Request)) API {

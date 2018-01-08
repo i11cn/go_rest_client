@@ -1,11 +1,14 @@
 package grc
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"encoding/json"
 	"encoding/xml"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 type (
@@ -88,11 +91,29 @@ func (gb *grc_body) Xml(obj interface{}) error {
 	return xml.Unmarshal(d, obj)
 }
 
-func new_grc_response(resp *http.Response) Response {
+func new_grc_response(resp *http.Response, ungzip bool) Response {
 	ret := &grc_response{}
 	ret.req = resp.Request
 	ret.resp = resp
-	ret.body = new_grc_body(resp, resp.Body)
+	var rd io.Reader = resp.Body
+	if ungzip && len(resp.Header.Get("Content-Encoding")) > 0 {
+		ecs := strings.Split(resp.Header.Get("Content-Encoding"), ",")
+		for _, ec := range ecs {
+			switch strings.ToUpper(ec) {
+			case "GZIP":
+				tmp, err := gzip.NewReader(resp.Body)
+				if err == nil {
+					rd = tmp
+				}
+				break
+
+			case "DEFLATE":
+				rd = flate.NewReader(resp.Body)
+				break
+			}
+		}
+	}
+	ret.body = new_grc_body(resp, rd)
 	return ret
 }
 

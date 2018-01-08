@@ -77,9 +77,7 @@ func (info *json_api_info) Run(obj ...interface{}) (Response, error) {
 	if info.server.ungzip {
 		req.Header.Set("Accept-Encoding", "gzip, deflate")
 	}
-	fmt.Println(req.Header)
 	resp, err := info.run(req)
-	fmt.Println(resp.Header)
 	if err != nil {
 		return nil, err
 	}

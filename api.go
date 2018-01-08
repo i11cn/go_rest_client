@@ -46,8 +46,6 @@ func (info *api_info) get_request(body io.Reader, obj ...interface{}) (*http.Req
 		}
 	}
 	url := fmt.Sprintf(info.url, obj...)
-	fmt.Println("onfo.URL = ", info.url)
-	fmt.Println("URL = ", url)
 	return http.NewRequest(info.method, url, body)
 }
 

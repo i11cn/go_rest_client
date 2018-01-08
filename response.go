@@ -97,20 +97,15 @@ func new_grc_response(resp *http.Response, ungzip bool) Response {
 	ret.resp = resp
 	var rd io.Reader = resp.Body
 	if ungzip && len(resp.Header.Get("Content-Encoding")) > 0 {
-		ecs := strings.Split(resp.Header.Get("Content-Encoding"), ",")
-		for _, ec := range ecs {
-			switch strings.ToUpper(ec) {
-			case "GZIP":
-				tmp, err := gzip.NewReader(resp.Body)
-				if err == nil {
-					rd = tmp
-				}
-				break
-
-			case "DEFLATE":
-				rd = flate.NewReader(resp.Body)
-				break
+		switch strings.ToUpper(resp.Header.Get("Content-Encoding")) {
+		case "GZIP":
+			tmp, err := gzip.NewReader(resp.Body)
+			if err == nil {
+				rd = tmp
 			}
+
+		case "DEFLATE":
+			rd = flate.NewReader(resp.Body)
 		}
 	}
 	ret.body = new_grc_body(resp, rd)

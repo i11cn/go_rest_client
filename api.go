@@ -83,7 +83,7 @@ func (info *json_api_info) Run(obj ...interface{}) (Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return new_grc_response(resp, true), nil
+	return new_grc_response(resp, info.server.ungzip), nil
 }
 
 func new_json_api(rs *RestServer, method, uri string, body bool, f ...func(*http.Request)) API {
